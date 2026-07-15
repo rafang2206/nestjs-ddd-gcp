@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: geeks-castle-api
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      GOOGLE_APPLICATION_CREDENTIALS: /app/.keys/key.json
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./.keys:/app/.keys:ro
+    restart: unless-stopped

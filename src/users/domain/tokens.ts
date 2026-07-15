@@ -1,0 +1,4 @@
+export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
+export const PASSWORD_GENERATOR = Symbol('PASSWORD_GENERATOR');
+export const PASSWORD_HASHER = Symbol('PASSWORD_HASHER');
+export const USER_EVENT_PUBLISHER = Symbol('USER_EVENT_PUBLISHER');
