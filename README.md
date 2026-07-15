@@ -305,6 +305,188 @@ La API queda disponible en:
 http://localhost:3000
 ```
 
+## Despliegue en GCP con deploy.sh
+
+El proyecto incluye el script `deploy.sh` para construir la imagen Docker, subirla a Artifact Registry y desplegarla en Cloud Run.
+
+### Requisitos previos
+
+- Tener instalado Google Cloud CLI (`gcloud`).
+- Tener Docker instalado y ejecutandose.
+- Tener permisos en el proyecto de GCP para:
+  - habilitar APIs,
+  - crear repositorios de Artifact Registry,
+  - subir imagenes Docker,
+  - desplegar servicios en Cloud Run,
+  - administrar permisos IAM si configuras una Service Account dedicada.
+
+Autenticarse en GCP:
+
+```bash
+gcloud auth login
+```
+
+Seleccionar el proyecto:
+
+```bash
+gcloud config set project prueba-tecnia-30e3f
+```
+
+Habilitar APIs necesarias:
+
+```bash
+gcloud services enable run.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable firestore.googleapis.com
+gcloud services enable pubsub.googleapis.com
+```
+
+### Crear Artifact Registry
+
+El script usa estos valores:
+
+```bash
+REGION="southamerica-east1"
+ARTIFACT_REPOSITORY="nestjs-prueba"
+IMAGE_NAME="geeks-castle-api"
+```
+
+Crea el repositorio Docker en Artifact Registry:
+
+```bash
+gcloud artifacts repositories create nestjs-prueba \
+  --repository-format=docker \
+  --location=southamerica-east1 \
+  --description="Docker images for NestJS Geeks Castle API"
+```
+
+Configura Docker para autenticar contra Artifact Registry:
+
+```bash
+gcloud auth configure-docker southamerica-east1-docker.pkg.dev
+```
+
+### Configurar recursos de la aplicacion
+
+Firestore debe estar creado en modo Native en el proyecto.
+
+Tambien deben existir el topic y la subscription de Pub/Sub:
+
+```bash
+gcloud pubsub topics create users.created
+```
+
+```bash
+gcloud pubsub subscriptions create users.created.password-generator \
+  --topic=users.created
+```
+
+### Configurar autenticacion de Cloud Run
+
+En Cloud Run no se recomienda usar `GOOGLE_APPLICATION_CREDENTIALS` ni subir el JSON de la Service Account. Lo ideal es asignar una Service Account IAM al servicio.
+
+Crear Service Account para runtime:
+
+```bash
+gcloud iam service-accounts create users-api-runtime \
+  --display-name="Users API Cloud Run runtime"
+```
+
+Define el email:
+
+```bash
+SERVICE_ACCOUNT_EMAIL="users-api-runtime@prueba-tecnia-30e3f.iam.gserviceaccount.com"
+```
+
+Asignar permisos minimos:
+
+```bash
+gcloud projects add-iam-policy-binding prueba-tecnia-30e3f \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/datastore.user"
+```
+
+```bash
+gcloud projects add-iam-policy-binding prueba-tecnia-30e3f \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/pubsub.publisher"
+```
+
+```bash
+gcloud projects add-iam-policy-binding prueba-tecnia-30e3f \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/pubsub.subscriber"
+```
+
+El script actual no define `--service-account`. Para usar la Service Account dedicada, agrega esta opcion al comando `gcloud run deploy` dentro de `deploy.sh`:
+
+```bash
+--service-account "${SERVICE_ACCOUNT_EMAIL}" \
+```
+
+Tambien puedes desplegar con la Service Account por defecto de Compute Engine, pero debes darle los mismos permisos.
+
+### Revisar variables del script
+
+Antes de ejecutar, valida estos valores en `deploy.sh`:
+
+```bash
+PROJECT_ID="prueba-tecnia-30e3f"
+REGION="southamerica-east1"
+ARTIFACT_REPOSITORY="nestjs-prueba"
+IMAGE_NAME="geeks-castle-api"
+CLOUD_RUN_SERVICE="api"
+
+FIREBASE_PROJECT_ID="prueba-tecnia-30e3f"
+GOOGLE_CLOUD_PROJECT_ID="prueba-tecnia-30e3f"
+PUBSUB_USER_CREATED_TOPIC="users.created"
+PUBSUB_USER_CREATED_SUBSCRIPTION="users.created.password-generator"
+```
+
+No configures estas variables para Cloud Run productivo:
+
+```env
+GOOGLE_APPLICATION_CREDENTIALS
+FIRESTORE_EMULATOR_HOST
+PUBSUB_EMULATOR_HOST
+```
+
+### Ejecutar despliegue
+
+Dar permisos de ejecucion al script:
+
+```bash
+chmod +x deploy.sh
+```
+
+Ejecutar:
+
+```bash
+./deploy.sh
+```
+
+El script realiza:
+
+1. Configura el proyecto de GCP.
+2. Configura Docker para Artifact Registry.
+3. Construye la imagen Docker para `linux/amd64`.
+4. Sube la imagen a Artifact Registry.
+5. Despliega el servicio en Cloud Run.
+6. Imprime la URL final del servicio.
+
+### Nota sobre Pub/Sub Pull en Cloud Run
+
+La implementacion actual consume Pub/Sub mediante una subscription Pull dentro del proceso NestJS. Para que el subscriber siga escuchando mensajes en Cloud Run, considera configurar al menos una instancia minima:
+
+```bash
+gcloud run services update api \
+  --region southamerica-east1 \
+  --min-instances 1
+```
+
+∂
+
 ## Endpoints
 
 La API usa prefijo global:

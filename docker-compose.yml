@@ -4,13 +4,15 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: geeks-castle-api
-    env_file:
-      - .env
     environment:
-      PORT: 3000
+      PORT: 8080
       GOOGLE_APPLICATION_CREDENTIALS: /app/.keys/key.json
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      GOOGLE_CLOUD_PROJECT_ID: ${GOOGLE_CLOUD_PROJECT_ID}
+      PUBSUB_USER_CREATED_TOPIC: ${PUBSUB_USER_CREATED_TOPIC}
+      PUBSUB_USER_CREATED_SUBSCRIPTION: ${PUBSUB_USER_CREATED_SUBSCRIPTION}
     ports:
-      - '3000:3000'
+      - '8080:8080'
     volumes:
       - ./.keys:/app/.keys:ro
     restart: unless-stopped
